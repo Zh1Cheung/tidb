@@ -881,6 +881,7 @@ const (
 	ErrAlterOperationNotSupportedReasonNotNull               = 1861
 	ErrMustChangePasswordLogin                               = 1862
 	ErrRowInWrongPartition                                   = 1863
+	ErrInternalCommand                                       = 1864
 	ErrErrorLast                                             = 1863
 	ErrMaxExecTimeExceeded                                   = 1907
 	ErrInvalidFieldSize                                      = 3013

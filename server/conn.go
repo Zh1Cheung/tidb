@@ -1287,7 +1287,6 @@ func (cc *clientConn) dispatch(ctx context.Context, data []byte) error {
 	// ComProcessInfo, ComConnect, ComProcessKill, ComDebug
 	case mysql.ComPing:
 		return cc.writeOK(ctx)
-	// ComTime, ComDelayedInsert
 	case mysql.ComChangeUser:
 		return cc.handleChangeUser(ctx, data)
 	// ComBinlogDump, ComTableDump, ComConnectOut, ComRegisterSlave
@@ -1308,6 +1307,10 @@ func (cc *clientConn) dispatch(ctx context.Context, data []byte) error {
 	// ComDaemon, ComBinlogDumpGtid
 	case mysql.ComResetConnection:
 		return cc.handleResetConnection(ctx)
+	// Todo: According to mysql document, these commands are supposed to be used only internally.
+	// including above mysql.ComSleep
+	case mysql.ComTime, mysql.ComDelayedInsert, mysql.ComDaemon:
+		return cc.handleInternalCmd(cmd)
 	// ComEnd
 	default:
 		return mysql.NewErrf(mysql.ErrUnknown, "command %d not supported now", nil, cmd)
@@ -2316,6 +2319,11 @@ func (cc *clientConn) handleRefresh(ctx context.Context, subCommand byte) error 
 		}
 	}
 	return cc.writeOK(ctx)
+}
+
+// for internal command,return ErrInternalCommand
+func (cc *clientConn) handleInternalCmd(subCommand byte) error {
+	return mysql.NewErr(mysql.ErrInternalCommand, subCommand)
 }
 
 var _ fmt.Stringer = getLastStmtInConn{}

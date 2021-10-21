@@ -824,6 +824,7 @@ var MySQLErrName = map[uint16]*mysql.ErrMessage{
 	ErrAlterOperationNotSupportedReasonNotNull:               mysql.Message("cannot silently convert NULL values, as required in this SQLMODE", nil),
 	ErrMustChangePasswordLogin:                               mysql.Message("Your password has expired. To log in you must change it using a client that supports expired passwords.", nil),
 	ErrRowInWrongPartition:                                   mysql.Message("Found a row in wrong partition %s", []int{0}),
+	ErrInternalCommand:                                       mysql.Message("command %d is a internal command", nil),
 	ErrGeneratedColumnFunctionIsNotAllowed:                   mysql.Message("Expression of generated column '%s' contains a disallowed function.", nil),
 	ErrGeneratedColumnRowValueIsNotAllowed:                   mysql.Message("Expression of generated column '%s' cannot refer to a row value", nil),
 	ErrUnsupportedAlterInplaceOnVirtualColumn:                mysql.Message("INPLACE ADD or DROP of virtual columns cannot be combined with other ALTER TABLE actions.", nil),
