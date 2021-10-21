@@ -1775,9 +1775,8 @@ func (cc *clientConn) handleQuery(ctx context.Context, sql string) (err error) {
 			// server and fallback to TiKV.
 			warns := append(parserWarns, stmtctx.SQLWarn{Level: stmtctx.WarnLevelError, Err: err})
 			delete(cc.ctx.GetSessionVars().IsolationReadEngines, kv.TiFlash)
-			_, err = cc.handleStmt(ctx, stmt, warns, i == len(stmts)-1)
 			cc.ctx.GetSessionVars().IsolationReadEngines[kv.TiFlash] = struct{}{}
-			if err != nil {
+			if _, err = cc.handleStmt(ctx, stmt, warns, i == len(stmts)-1); err != nil {
 				break
 			}
 		}
@@ -1887,7 +1886,7 @@ func (cc *clientConn) prefetchPointPlanKeys(ctx context.Context, stmts []ast.Stm
 }
 
 // The first return value indicates whether the call of handleStmt has no side effect and can be retried.
-// Currently the first return value is used to fallback to TiKV when TiFlash is down.
+// Currently, the first return value is used to fall back to TiKV when TiFlash is down.
 func (cc *clientConn) handleStmt(ctx context.Context, stmt ast.StmtNode, warns []stmtctx.SQLWarn, lastStmt bool) (bool, error) {
 	ctx = context.WithValue(ctx, execdetails.StmtExecDetailKey, &execdetails.StmtExecDetails{})
 	ctx = context.WithValue(ctx, util.ExecDetailsKey, &util.ExecDetails{})
@@ -1904,12 +1903,10 @@ func (cc *clientConn) handleStmt(ctx context.Context, stmt ast.StmtNode, warns [
 		return true, err
 	}
 
+	status := cc.ctx.Status()
 	if lastStmt {
 		cc.ctx.GetSessionVars().StmtCtx.AppendWarnings(warns)
-	}
-
-	status := cc.ctx.Status()
-	if !lastStmt {
+	} else {
 		status |= mysql.ServerMoreResultsExists
 	}
 
@@ -1923,18 +1920,18 @@ func (cc *clientConn) handleStmt(ctx context.Context, stmt ast.StmtNode, warns [
 		if err != nil {
 			return retryable, err
 		}
-	} else {
-		handled, err := cc.handleQuerySpecial(ctx, status)
-		if handled {
-			execStmt := cc.ctx.Value(session.ExecStmtVarKey)
-			if execStmt != nil {
-				execStmt.(*executor.ExecStmt).FinishExecuteStmt(0, err, false)
-			}
-		}
-		if err != nil {
-			return false, err
-		}
+		return false, nil
 	}
+
+	handled, err := cc.handleQuerySpecial(ctx, status)
+	execStmt := cc.ctx.Value(session.ExecStmtVarKey)
+	if handled && execStmt != nil {
+		execStmt.(*executor.ExecStmt).FinishExecuteStmt(0, err, false)
+	}
+	if err != nil {
+		return false, err
+	}
+
 	return false, nil
 }
 
