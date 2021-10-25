@@ -1759,7 +1759,7 @@ func (cc *clientConn) handleQuery(ctx context.Context, sql string) (err error) {
 	var retryable bool
 	for i, stmt := range stmts {
 		if len(pointPlans) > 0 {
-			// Save the point plan in Session so we don't need to build the point plan again.
+			// Save the point plan in Session, so we don't need to build the point plan again.
 			cc.ctx.SetValue(plannercore.PointPlanKey, plannercore.PointPlanVal{Plan: pointPlans[i]})
 		}
 		retryable, err = cc.handleStmt(ctx, stmt, parserWarns, i == len(stmts)-1)
