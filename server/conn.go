@@ -358,8 +358,7 @@ func (cc *clientConn) writeInitialHandshake(ctx context.Context) error {
 	data = append(data, 0)
 	// auth-plugin name
 	if cc.ctx == nil {
-		err := cc.openSession()
-		if err != nil {
+		if err := cc.openSession(); err != nil {
 			return err
 		}
 	}
@@ -372,15 +371,13 @@ func (cc *clientConn) writeInitialHandshake(ctx context.Context) error {
 
 	// Close the session to force this to be re-opened after we parse the response. This is needed
 	// to ensure we use the collation and client flags from the response for the session.
-	err = cc.ctx.Close()
-	if err != nil {
+	if err = cc.ctx.Close(); err != nil {
 		return err
 	}
 	cc.ctx = nil
 
 	data = append(data, 0)
-	err = cc.writePacket(data)
-	if err != nil {
+	if err = cc.writePacket(data); err != nil {
 		return err
 	}
 	return cc.flush(ctx)
@@ -1546,11 +1543,11 @@ func processStream(ctx context.Context, cc *clientConn, loadDataInfo *executor.L
 	}
 	if err != nil {
 		logutil.Logger(ctx).Error("load data process stream error", zap.Error(err))
-	} else {
-		err = loadDataInfo.EnqOneTask(ctx)
-		if err != nil {
-			logutil.Logger(ctx).Error("load data process stream error", zap.Error(err))
-		}
+		return
+	}
+	if err = loadDataInfo.EnqOneTask(ctx); err != nil {
+		logutil.Logger(ctx).Error("load data process stream error", zap.Error(err))
+		return
 	}
 }
 
@@ -1911,22 +1908,20 @@ func (cc *clientConn) handleStmt(ctx context.Context, stmt ast.StmtNode, warns [
 	}
 
 	if rs != nil {
-		connStatus := atomic.LoadInt32(&cc.status)
-		if connStatus == connStatusShutdown {
+		if connStatus := atomic.LoadInt32(&cc.status); connStatus == connStatusShutdown {
 			return false, executor.ErrQueryInterrupted
 		}
-
-		retryable, err := cc.writeResultset(ctx, rs, false, status, 0)
-		if err != nil {
+		if retryable, err := cc.writeResultset(ctx, rs, false, status, 0); err != nil {
 			return retryable, err
 		}
 		return false, nil
 	}
 
 	handled, err := cc.handleQuerySpecial(ctx, status)
-	execStmt := cc.ctx.Value(session.ExecStmtVarKey)
-	if handled && execStmt != nil {
-		execStmt.(*executor.ExecStmt).FinishExecuteStmt(0, err, false)
+	if handled {
+		if execStmt := cc.ctx.Value(session.ExecStmtVarKey); execStmt != nil {
+			execStmt.(*executor.ExecStmt).FinishExecuteStmt(0, err, false)
+		}
 	}
 	if err != nil {
 		return false, err
@@ -2036,13 +2031,13 @@ func (cc *clientConn) writeResultset(ctx context.Context, rs ResultSet, binary b
 	}()
 	cc.initResultEncoder(ctx)
 	defer cc.rsEncoder.clean()
-	var err error
 	if mysql.HasCursorExistsFlag(serverStatus) {
-		err = cc.writeChunksWithFetchSize(ctx, rs, serverStatus, fetchSize)
-	} else {
-		retryable, err = cc.writeChunks(ctx, rs, binary, serverStatus)
+		if err := cc.writeChunksWithFetchSize(ctx, rs, serverStatus, fetchSize); err != nil {
+			return false, err
+		}
+		return false, cc.flush(ctx)
 	}
-	if err != nil {
+	if retryable, err := cc.writeChunks(ctx, rs, binary, serverStatus); err != nil {
 		return retryable, err
 	}
 
@@ -2075,8 +2070,7 @@ func (cc *clientConn) writeChunks(ctx context.Context, rs ResultSet, binary bool
 	gotColumnInfo := false
 	firstNext := true
 	var stmtDetail *execdetails.StmtExecDetails
-	stmtDetailRaw := ctx.Value(execdetails.StmtExecDetailKey)
-	if stmtDetailRaw != nil {
+	if stmtDetailRaw := ctx.Value(execdetails.StmtExecDetailKey); stmtDetailRaw != nil {
 		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
 	}
 	for {
@@ -2100,8 +2094,7 @@ func (cc *clientConn) writeChunks(ctx context.Context, rs ResultSet, binary bool
 			// We need to call Next before we get columns.
 			// Otherwise, we will get incorrect columns info.
 			columns := rs.Columns()
-			err = cc.writeColumnInfo(columns, serverStatus)
-			if err != nil {
+			if err = cc.writeColumnInfo(columns, serverStatus); err != nil {
 				return false, err
 			}
 			gotColumnInfo = true
@@ -2143,12 +2136,11 @@ func (cc *clientConn) writeChunks(ctx context.Context, rs ResultSet, binary bool
 func (cc *clientConn) writeChunksWithFetchSize(ctx context.Context, rs ResultSet, serverStatus uint16, fetchSize int) error {
 	fetchedRows := rs.GetFetchedRows()
 
-	// if fetchedRows is not enough, getting data from recordSet.
-	req := rs.NewChunk()
 	for len(fetchedRows) < fetchSize {
+		// if fetchedRows is not enough, getting data from recordSet.
+		req := rs.NewChunk()
 		// Here server.tidbResultSet implements Next method.
-		err := rs.Next(ctx, req)
-		if err != nil {
+		if err := rs.Next(ctx, req); err != nil {
 			return err
 		}
 		rowCount := req.NumRows()
@@ -2246,12 +2238,10 @@ func (cc *clientConn) handleChangeUser(ctx context.Context, data []byte) error {
 	dbName, _ := parseNullTermString(data)
 	cc.dbname = string(hack.String(dbName))
 
-	err := cc.ctx.Close()
-	if err != nil {
+	if err := cc.ctx.Close(); err != nil {
 		logutil.Logger(ctx).Debug("close old context failed", zap.Error(err))
 	}
-	err = cc.openSessionAndDoAuth(pass, "")
-	if err != nil {
+	if err := cc.openSessionAndDoAuth(pass, ""); err != nil {
 		return err
 	}
 	return cc.handleCommonConnectionReset(ctx)
